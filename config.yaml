@@ -1,0 +1,26 @@
+income: 500000
+categories-planned:
+- name: rent 
+  amount: 170000 
+- name: overhead
+  amount: 30000
+- name: groceries
+  amount: 70000
+- name: health
+  amount: 20000
+- name: sport
+  amount: 30000
+- name: household
+  amount: 15000
+- name: car
+  amount: 40000
+- name: clothes
+  amount: 10000
+- name: restaurant
+  amount: 60000
+- name: courses
+  amount: 5000
+- name: travel
+  amount: 25000
+- name: rest
+  amount: 25000
