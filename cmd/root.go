@@ -12,7 +12,6 @@ var rootCmd = &cobra.Command{
 	Short: "Budget is a minimal budgeting app",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Hello World!")
 	},
 }
 
@@ -27,4 +26,5 @@ func init() {
 	rootCmd.AddCommand(CreateCmd)
 	rootCmd.AddCommand(AddCmd)
 	rootCmd.AddCommand(StatusCmd)
+	rootCmd.AddCommand(FilterCmd)
 }

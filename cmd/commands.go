@@ -26,8 +26,13 @@ type BasicConfig struct {
 
 var dateInput string
 var categoryInput string
+var categorySliceInput []string
 var amountInput int32
 var commentInput string
+var fromInput string
+var toInput string
+var minInput int32
+var maxInput int32
 
 func getDatabasePath() string {
 	// Get the path of the executable
@@ -98,6 +103,15 @@ func createDatabase(config BasicConfig, dbFilePath string) {
 		stmt.Exec(element.Name, element.Amount)
 	}
 	fmt.Println("Database and table successfully set up at:", dbFilePath)
+}
+
+func contains(slice []string, word string) bool {
+	for _, w := range slice {
+		if w == word {
+			return true
+		}
+	}
+	return false
 }
 
 var CreateCmd = &cobra.Command{
@@ -193,6 +207,70 @@ var AddCmd = &cobra.Command{
 		defer db.Close()
 		stmt, _ := db.Prepare("insert into expenses(date, category, amount, comment) values(?, ?, ?, ?)")
 		stmt.Exec(dateInput, categoryInput, amountInput, commentInput)
+	},
+}
+
+var FilterCmd = &cobra.Command{
+	Use:   "filter",
+	Short: "Filter budget data",
+	Long: `
+	Filter budget data by multiple criteria, usage:
+	budget filter --from 2024-01-01 --to 2024-02-28 --category groceries --max 100000 --min 10000
+	`,
+
+	//TODO PreRunE
+
+	Run: func(cmd *cobra.Command, args []string) {
+		dbFilePath := getDatabasePath()
+		db, err := sql.Open("sqlite3", dbFilePath)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer db.Close()
+		stmt, _ := db.Prepare(`
+			select category, date, amount, comment from expenses
+			where 
+			date >= ? 
+			and date <= ?
+			and amount >= ?
+			and amount <= ?
+			order by date asc
+		`)
+		rows, err := stmt.Query(fromInput, toInput, minInput, maxInput)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer rows.Close()
+
+		// initialize table for pretty print
+		t := table.NewWriter()
+		t.SetOutputMirror(os.Stdout)
+		t.AppendHeader(table.Row{"Category", "Date", "Amount", "Comment"})
+
+		// iterating through records and add to table as row
+		var filteredSum int32
+		for rows.Next() {
+			var categoryName string
+			var date string
+			var amount int32
+			var comment string
+			err = rows.Scan(&categoryName, &date, &amount, &comment)
+			if err != nil {
+				log.Fatal(err)
+			}
+			if contains(categorySliceInput, categoryName) || categorySliceInput == nil {
+				filteredSum += amount
+				t.AppendRow([]interface{}{categoryName, date, amount, comment})
+			}
+			err = rows.Err()
+			if err != nil {
+				log.Fatal(err)
+			}
+		}
+		// add footer to table, set style of table and render
+		t.AppendFooter(table.Row{"TOTAL", "", filteredSum, ""})
+		t.SetStyle(table.StyleColoredBright)
+		t.Render()
 	},
 }
 
@@ -312,9 +390,18 @@ var StatusCmd = &cobra.Command{
 }
 
 func init() {
+	now := time.Now()
+	currentYear, currentMonth, _ := now.Date()
+	currentLocation := now.Location()
+	firstOfMonth := time.Date(currentYear, currentMonth, 1, 0, 0, 0, 0, currentLocation).Format("2006-01-02")
+
 	AddCmd.Flags().StringVarP(&dateInput, "date", "d", time.Now().Format("2006-01-02"), "Date of actual transaction in YYYY-MM-DD format")
-	// TODO: check if valid
 	AddCmd.Flags().StringVarP(&categoryInput, "category", "c", "", "Category of transaction")
 	AddCmd.Flags().Int32VarP(&amountInput, "amount", "a", 0, "Transaction amount")
 	AddCmd.Flags().StringVarP(&commentInput, "comment", "m", "", "Additional information")
+	FilterCmd.Flags().StringSliceVarP(&categorySliceInput, "category", "c", nil, "Categories to filter for")
+	FilterCmd.Flags().Int32VarP(&minInput, "min", "", 0, "Min transaction amount, default: 0")
+	FilterCmd.Flags().Int32VarP(&maxInput, "max", "", 100000, "Max transaction amount, default: 100.000")
+	FilterCmd.Flags().StringVarP(&fromInput, "from", "f", firstOfMonth, "From date in YYYY-MM-DD format, default: first day of current month")
+	FilterCmd.Flags().StringVarP(&toInput, "to", "t", time.Now().Format("2006-01-02"), "To date in YYYY-MM-DD format, default: today")
 }
